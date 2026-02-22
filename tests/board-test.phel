@@ -52,12 +52,12 @@
 
 (deftest test-cells-start-unrevealed
   (let [board (create-board 5 5 5 [-1 -1])
-        all-hidden (every? |(false? (:revealed? $)) (values (:cells board)))]
+        all-hidden (every? |(not (:revealed? $)) (values (:cells board)))]
     (is all-hidden "all cells start unrevealed")))
 
 (deftest test-cells-start-unflagged
   (let [board (create-board 5 5 5 [-1 -1])
-        all-clean (every? |(false? (:flagged? $)) (values (:cells board)))]
+        all-clean (every? |(not (:flagged? $)) (values (:cells board)))]
     (is all-clean "all cells start unflagged")))
 
 (deftest test-adjacency-computed
@@ -101,7 +101,7 @@
   (let [board   (simple-board)
         flagged (toggle-flag board [1 1])
         result  (reveal flagged [1 1])]
-    (is (false? (:revealed? (get-cell result [1 1]))) "flagged cell cannot be revealed")))
+    (is (not (:revealed? (get-cell result [1 1]))) "flagged cell cannot be revealed")))
 
 # ---------------------------------------------------------------------------
 # Flood fill
@@ -118,7 +118,7 @@
 
 (deftest test-flood-fill-stops-at-mine
   (let [result (reveal (simple-board) [2 2])]
-    (is (false? (:revealed? (get-cell result [0 0]))) "mine not auto-revealed")))
+    (is (not (:revealed? (get-cell result [0 0]))) "mine not auto-revealed")))
 
 # ---------------------------------------------------------------------------
 # Win condition
@@ -147,14 +147,14 @@
 (deftest test-unflag-cell
   (let [flagged (toggle-flag (simple-board) [0 0])
         result  (toggle-flag flagged [0 0])]
-    (is (false? (:flagged? (get-cell result [0 0]))) "cell unflagged")
+    (is (not (:flagged? (get-cell result [0 0]))) "cell unflagged")
     (is (= 0 (flag-count result)) "flag count back to 0")))
 
 (deftest test-flag-revealed-cell-is-noop
   (let [board    (simple-board)
         revealed (reveal board [0 1])
         result   (toggle-flag revealed [0 1])]
-    (is (false? (:flagged? (get-cell result [0 1]))) "revealed cells cannot be flagged")))
+    (is (not (:flagged? (get-cell result [0 1]))) "revealed cells cannot be flagged")))
 
 (deftest test-flag-count-tracks-correctly
   (let [b1 (toggle-flag (simple-board) [1 1])

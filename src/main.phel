@@ -119,11 +119,11 @@
     (let [cfg  (choose-difficulty)
           # Placeholder board (no mines yet — placed on first reveal)
           base  (create-board (:width cfg) (:height cfg) (:mines cfg) [-1 -1])
-          board (-> base
-                    (assoc :initialized? false)
-                    (assoc :width  (:width cfg))
-                    (assoc :height (:height cfg))
-                    (assoc :mines  (:mines cfg)))]
+          board (assoc base
+                       :initialized? false
+                       :width        (:width cfg)
+                       :height       (:height cfg)
+                       :mines        (:mines cfg))]
       (game-loop board "Reveal a cell to start. First click is always safe.")
       (when (play-again?) (recur)))))
 

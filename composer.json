@@ -5,9 +5,11 @@
     "homepage": "https://github.com/SauronBot/phel-minesweeper",
     "license": "MIT",
     "type": "project",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "require": {
         "php": ">=8.3",
-        "phel-lang/phel-lang": ">=0.24"
+        "phel-lang/phel-lang": "dev-main"
     },
     "require-dev": {
         "symfony/var-dumper": "^7.3"

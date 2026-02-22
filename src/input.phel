@@ -10,7 +10,7 @@
      {:action :empty}"
   {:export true}
   [line width height]
-  (let [parts (into [] (filter |(not= $ "") (php/explode " " (php/trim line))))]
+  (let [parts (filter |(not= $ "") (php/explode " " (php/trim line)))]
     (cond
       (= 0 (count parts))
       {:action :empty}

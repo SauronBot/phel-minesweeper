@@ -144,9 +144,9 @@
       (nil? cell)      board
       (revealed? cell) board
       (flagged? cell)  board
-      (mine? cell)     (-> board
-                           (assoc :cells (reveal-cell cells coord))
-                           (assoc :state :lost))
+      (mine? cell)     (assoc board
+                              :cells (reveal-cell cells coord)
+                              :state :lost)
       :else            (let [new-cells (flood-fill cells
                                                    (:width board)
                                                    (:height board)
@@ -156,9 +156,9 @@
                                                           (and (not (:revealed? c))
                                                                (not (:mine? c))))
                                                         (values new-cells))))]
-                         (-> board
-                             (assoc :cells new-cells)
-                             (assoc :state (if (= 0 remaining) :won :playing)))))))
+                         (assoc board
+                                :cells new-cells
+                                :state (if (= 0 remaining) :won :playing))))))
 
 # ---------------------------------------------------------------------------
 # Toggle flag
@@ -175,9 +175,9 @@
             new-cells   (assoc (:cells board) coord
                                (assoc cell :flagged? now-flagged))
             delta       (if now-flagged 1 -1)]
-        (-> board
-            (assoc :cells new-cells)
-            (assoc :flags (+ (:flags board) delta)))))))
+        (assoc board
+               :cells new-cells
+               :flags (+ (:flags board) delta))))))
 
 # ---------------------------------------------------------------------------
 # State predicates
