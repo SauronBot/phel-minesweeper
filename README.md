@@ -78,14 +78,14 @@ Use `(-> m (assoc :k1 v1) (assoc :k2 v2))` or `(merge m {:k1 v1 :k2 v2})`.
 
 **`(is (not (pred val)))` has inverted semantics** in the test framework.
 Use `(is (false? (pred val)))` instead when asserting falsy predicates.
-[See issue →](https://github.com/phel-lang/phel-lang/issues)
+[[See issue #1098 →](https://github.com/phel-lang/phel-lang/issues/1098)
 
 **Lazy sequences from `filter`/`map` are not PHP arrays.**
 After calling `(filter pred php-array)`, force evaluation with `(into [] ...)` before
 using `peek`, array operations, or passing to PHP functions.
 
 **`php/explode` returns a PHP array** — `filter` over it produces a lazy seq.
-Wrap with `(into [] ...)` immediately if you need vector semantics.
+Wrap with `(into [] ...)` immediately if you need vector semantics. [See issue #1099 →](https://github.com/phel-lang/phel-lang/issues/1099)
 
 ## License
 
