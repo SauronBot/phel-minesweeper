@@ -1,0 +1,188 @@
+(ns phel-minesweeper\board)
+
+# ---------------------------------------------------------------------------
+# Cell helpers
+# ---------------------------------------------------------------------------
+
+(defn make-cell []
+  {:mine? false :revealed? false :flagged? false :adjacent 0})
+
+(defn mine?     [cell] (:mine?     cell))
+(defn revealed? [cell] (:revealed? cell))
+(defn flagged?  [cell] (:flagged?  cell))
+(defn adjacent  [cell] (:adjacent  cell))
+
+# ---------------------------------------------------------------------------
+# Coord / neighbour helpers
+# ---------------------------------------------------------------------------
+
+(defn neighbors
+  {:export true}
+  [width height [r c]]
+  (doall
+    (for [dr :in [-1 0 1]
+          dc :in [-1 0 1]
+          :when (not (and (= dr 0) (= dc 0)))
+          :let  [nr (+ r dr) nc (+ c dc)]
+          :when (and (>= nr 0) (< nr height)
+                     (>= nc 0) (< nc width))]
+      [nr nc])))
+
+# ---------------------------------------------------------------------------
+# Board construction helpers
+# ---------------------------------------------------------------------------
+
+(defn- make-empty-cells [width height]
+  (reduce (fn [acc coord] (assoc acc coord (make-cell)))
+          {}
+          (doall (for [r :range [0 height] c :range [0 width]] [r c]))))
+
+(defn- set-mine [cells coord]
+  (assoc cells coord (assoc (get cells coord) :mine? true)))
+
+(defn- count-adjacent-mines [cells width height coord]
+  (count (doall (filter (fn [nc] (:mine? (get cells nc)))
+                        (neighbors width height coord)))))
+
+(defn- compute-adjacency [cells width height]
+  (reduce (fn [acc coord]
+            (assoc acc coord
+                   (assoc (get acc coord)
+                          :adjacent
+                          (count-adjacent-mines cells width height coord))))
+          cells
+          (keys cells)))
+
+(defn- shuffle-coords [coords]
+  # Schwartzian transform: assign random sort key, sort, strip key
+  (->> (doall coords)
+       (map (fn [c] [(php/rand) c]))
+       doall
+       (sort-by first)
+       (map second)
+       doall))
+
+# ---------------------------------------------------------------------------
+# Public: create-board
+# ---------------------------------------------------------------------------
+
+(defn create-board
+  "Create a new board. first-safe coord is kept mine-free (first-click safety)."
+  {:export true}
+  [width height mine-count first-safe]
+  (let [all-coords   (doall (for [r :range [0 height] c :range [0 width]] [r c]))
+        candidates   (doall (filter |(not= $ first-safe) all-coords))
+        mine-coords  (doall (take mine-count (shuffle-coords candidates)))
+        empty-cells  (make-empty-cells width height)
+        mined-cells  (reduce set-mine empty-cells mine-coords)
+        final-cells  (compute-adjacency mined-cells width height)]
+    {:width  width
+     :height height
+     :mines  mine-count
+     :cells  final-cells
+     :state  :playing
+     :flags  0}))
+
+# ---------------------------------------------------------------------------
+# Board queries
+# ---------------------------------------------------------------------------
+
+(defn get-cell [board coord]
+  {:export true}
+  (get (:cells board) coord))
+
+(defn board-neighbors [board coord]
+  {:export true}
+  (neighbors (:width board) (:height board) coord))
+
+(defn unrevealed-safe-count [board]
+  {:export true}
+  (count (doall (filter (fn [cell]
+                          (and (not (revealed? cell)) (not (mine? cell))))
+                        (values (:cells board))))))
+
+(defn flag-count [board]
+  {:export true}
+  (:flags board))
+
+# ---------------------------------------------------------------------------
+# Reveal — flood fill
+# ---------------------------------------------------------------------------
+
+(defn- reveal-cell [cells coord]
+  (assoc cells coord (assoc (get cells coord) :revealed? true)))
+
+(defn- flood-fill [cells width height start]
+  # BFS: always reveal start; spread to unrevealed neighbours when adjacent=0
+  # Use vectors explicitly to avoid lazy-seq/PHP-array coercion issues.
+  (loop [queue [start] visited #{} acc cells]
+    (if (empty? queue)
+      acc
+      (let [cur  (first queue)
+            tail (into [] (rest queue))]
+        (if (contains? visited cur)
+          (recur tail visited acc)
+          (let [cell     (get acc cur)
+                visited2 (conj visited cur)
+                acc2     (reveal-cell acc cur)]
+            (if (= 0 (:adjacent cell))
+              (let [nbrs (into [] (filter
+                                    (fn [n]
+                                      (let [nc (get acc2 n)]
+                                        (and nc (not (:revealed? nc)))))
+                                    (neighbors width height cur)))]
+                (recur (into [] (concat tail nbrs)) visited2 acc2))
+              (recur tail visited2 acc2))))))))
+
+(defn reveal
+  "Reveal a cell. Returns updated board."
+  {:export true}
+  [board coord]
+  (let [cells (:cells board)
+        cell  (get cells coord)]
+    (cond
+      (nil? cell)      board
+      (revealed? cell) board
+      (flagged? cell)  board
+      (mine? cell)     (-> board
+                           (assoc :cells (reveal-cell cells coord))
+                           (assoc :state :lost))
+      :else            (let [new-cells (flood-fill cells
+                                                   (:width board)
+                                                   (:height board)
+                                                   coord)
+                             remaining (count (doall
+                                                (filter (fn [c]
+                                                          (and (not (:revealed? c))
+                                                               (not (:mine? c))))
+                                                        (values new-cells))))]
+                         (-> board
+                             (assoc :cells new-cells)
+                             (assoc :state (if (= 0 remaining) :won :playing)))))))
+
+# ---------------------------------------------------------------------------
+# Toggle flag
+# ---------------------------------------------------------------------------
+
+(defn toggle-flag
+  "Toggle a flag on an unrevealed cell."
+  {:export true}
+  [board coord]
+  (let [cell (get (:cells board) coord)]
+    (if (or (nil? cell) (revealed? cell))
+      board
+      (let [now-flagged (not (flagged? cell))
+            new-cells   (assoc (:cells board) coord
+                               (assoc cell :flagged? now-flagged))
+            delta       (if now-flagged 1 -1)]
+        (-> board
+            (assoc :cells new-cells)
+            (assoc :flags (+ (:flags board) delta)))))))
+
+# ---------------------------------------------------------------------------
+# State predicates
+# ---------------------------------------------------------------------------
+
+(defn playing? [board] {:export true} (= :playing (:state board)))
+(defn won?     [board] {:export true} (= :won     (:state board)))
+(defn lost?    [board] {:export true} (= :lost    (:state board)))

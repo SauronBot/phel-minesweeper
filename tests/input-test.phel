@@ -1,0 +1,56 @@
+(ns phel-minesweeper\tests\input-test
+  (:require phel\test :refer [deftest is])
+  (:require phel-minesweeper\input :refer [parse-command]))
+
+(deftest test-parse-reveal
+  (let [cmd (parse-command "2 3" 9 9)]
+    (is (= :reveal (:action cmd)))
+    (is (= [2 3] (:coord cmd)))))
+
+(deftest test-parse-flag
+  (let [cmd (parse-command "f 4 5" 9 9)]
+    (is (= :flag (:action cmd)))
+    (is (= [4 5] (:coord cmd)))))
+
+(deftest test-parse-quit
+  (let [cmd (parse-command "q" 9 9)]
+    (is (= :quit (:action cmd)))))
+
+(deftest test-parse-empty
+  (let [cmd (parse-command "   " 9 9)]
+    (is (= :empty (:action cmd)))))
+
+(deftest test-parse-reveal-out-of-bounds
+  (let [cmd (parse-command "99 99" 9 9)]
+    (is (= :invalid (:action cmd)))))
+
+(deftest test-parse-flag-out-of-bounds
+  (let [cmd (parse-command "f 0 99" 9 9)]
+    (is (= :invalid (:action cmd)))))
+
+(deftest test-parse-flag-missing-args
+  (let [cmd (parse-command "f 1" 9 9)]
+    (is (= :invalid (:action cmd)))))
+
+(deftest test-parse-unknown-command
+  (let [cmd (parse-command "reveal 1 2" 9 9)]
+    (is (= :invalid (:action cmd)))))
+
+(deftest test-parse-boundary-valid
+  (let [cmd (parse-command "0 0" 9 9)]
+    (is (= :reveal (:action cmd)))
+    (is (= [0 0] (:coord cmd)))))
+
+(deftest test-parse-boundary-max
+  (let [cmd (parse-command "8 8" 9 9)]
+    (is (= :reveal (:action cmd)))
+    (is (= [8 8] (:coord cmd)))))
+
+(deftest test-parse-boundary-exact-oob
+  (let [cmd (parse-command "9 9" 9 9)]
+    (is (= :invalid (:action cmd)))))
+
+(deftest test-parse-extra-whitespace
+  (let [cmd (parse-command "  3   4  " 9 9)]
+    (is (= :reveal (:action cmd)))
+    (is (= [3 4] (:coord cmd)))))

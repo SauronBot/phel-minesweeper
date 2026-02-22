@@ -1,0 +1,195 @@
+(ns phel-minesweeper\tests\board-test
+  (:require phel\test :refer [deftest is])
+  (:require phel-minesweeper\board :refer [create-board get-cell reveal toggle-flag
+                                           playing? won? lost? unrevealed-safe-count
+                                           flag-count board-neighbors]))
+
+# ---------------------------------------------------------------------------
+# Helpers — deterministic 3×3 board: mine at [0 0]
+#
+#   M 1 0
+#   1 1 0
+#   0 0 0
+# ---------------------------------------------------------------------------
+
+(defn- cell [mine? adj]
+  {:mine? mine? :revealed? false :flagged? false :adjacent adj})
+
+(defn- simple-board []
+  (let [cells {[0 0] (cell true  0)
+               [0 1] (cell false 1)
+               [0 2] (cell false 0)
+               [1 0] (cell false 1)
+               [1 1] (cell false 1)
+               [1 2] (cell false 0)
+               [2 0] (cell false 0)
+               [2 1] (cell false 0)
+               [2 2] (cell false 0)}]
+    {:width 3 :height 3 :mines 1 :cells cells :state :playing :flags 0}))
+
+# ---------------------------------------------------------------------------
+# Board creation
+# ---------------------------------------------------------------------------
+
+(deftest test-board-dimensions
+  (let [board (create-board 5 4 3 [-1 -1])]
+    (is (= 5 (:width board)) "width is set")
+    (is (= 4 (:height board)) "height is set")
+    (is (= 3 (:mines board)) "mine count is set")))
+
+(deftest test-mine-count
+  (let [board (create-board 10 10 15 [-1 -1])
+        mines (count (doall (filter :mine? (values (:cells board)))))]
+    (is (= 15 mines) "exactly 15 mines placed")))
+
+(deftest test-all-cells-created
+  (let [board (create-board 4 3 2 [-1 -1])]
+    (is (= 12 (count (:cells board))) "4×3 = 12 cells")))
+
+(deftest test-initial-state-is-playing
+  (let [board (create-board 5 5 5 [-1 -1])]
+    (is (playing? board) "starts in :playing state")))
+
+(deftest test-cells-start-unrevealed
+  (let [board (create-board 5 5 5 [-1 -1])
+        all-hidden (every? |(false? (:revealed? $)) (values (:cells board)))]
+    (is all-hidden "all cells start unrevealed")))
+
+(deftest test-cells-start-unflagged
+  (let [board (create-board 5 5 5 [-1 -1])
+        all-clean (every? |(false? (:flagged? $)) (values (:cells board)))]
+    (is all-clean "all cells start unflagged")))
+
+(deftest test-adjacency-computed
+  (let [board (create-board 5 5 5 [-1 -1])
+        adjs  (doall (map :adjacent (values (:cells board))))]
+    (is (every? |(>= $ 0) adjs) "all adjacency counts non-negative")))
+
+# ---------------------------------------------------------------------------
+# Reveal — mine
+# ---------------------------------------------------------------------------
+
+(deftest test-reveal-mine-loses
+  (let [board  (simple-board)
+        result (reveal board [0 0])]
+    (is (lost? result) "hitting mine causes loss")))
+
+(deftest test-reveal-mine-state-is-lost
+  (let [board  (simple-board)
+        result (reveal board [0 0])]
+    (is (= :lost (:state result)) "state is :lost after hitting mine")))
+
+(deftest test-reveal-mine-exposes-cell
+  (let [board  (simple-board)
+        result (reveal board [0 0])]
+    (is (:revealed? (get-cell result [0 0])) "mine cell is marked revealed")))
+
+# ---------------------------------------------------------------------------
+# Reveal — safe cells
+# ---------------------------------------------------------------------------
+
+(deftest test-reveal-safe-cell-stays-playing
+  (let [result (reveal (simple-board) [0 1])]
+    (is (playing? result) "revealing adjacent cell stays playing")))
+
+(deftest test-reveal-already-revealed-is-noop
+  (let [after1 (reveal (simple-board) [2 2])
+        after2 (reveal after1 [2 2])]
+    (is (= after1 after2) "double reveal is idempotent")))
+
+(deftest test-reveal-flagged-cell-is-noop
+  (let [board   (simple-board)
+        flagged (toggle-flag board [1 1])
+        result  (reveal flagged [1 1])]
+    (is (false? (:revealed? (get-cell result [1 1]))) "flagged cell cannot be revealed")))
+
+# ---------------------------------------------------------------------------
+# Flood fill
+# ---------------------------------------------------------------------------
+
+(deftest test-flood-fill-spreads-from-empty
+  (let [result (reveal (simple-board) [2 2])
+        cells  (:cells result)]
+    (is (:revealed? (get cells [2 2])) "[2 2] revealed")
+    (is (:revealed? (get cells [2 1])) "[2 1] revealed by flood")
+    (is (:revealed? (get cells [2 0])) "[2 0] revealed by flood")
+    (is (:revealed? (get cells [1 2])) "[1 2] revealed by flood")
+    (is (:revealed? (get cells [0 2])) "[0 2] revealed by flood")))
+
+(deftest test-flood-fill-stops-at-mine
+  (let [result (reveal (simple-board) [2 2])]
+    (is (false? (:revealed? (get-cell result [0 0]))) "mine not auto-revealed")))
+
+# ---------------------------------------------------------------------------
+# Win condition
+# ---------------------------------------------------------------------------
+
+(deftest test-win-reveals-all-safe-cells
+  (let [b1 (reveal (simple-board) [2 2])
+        b2 (reveal b1 [0 1])
+        b3 (reveal b2 [1 0])
+        b4 (reveal b3 [1 1])]
+    (is (won? b4) "win when all safe cells revealed")))
+
+(deftest test-no-win-while-safe-cells-remain
+  (let [result (reveal (simple-board) [0 1])]
+    (is (playing? result) "still cells to reveal — still playing")))
+
+# ---------------------------------------------------------------------------
+# Flag
+# ---------------------------------------------------------------------------
+
+(deftest test-flag-unrevealed-cell
+  (let [result (toggle-flag (simple-board) [0 0])]
+    (is (:flagged? (get-cell result [0 0])) "cell is flagged")
+    (is (= 1 (flag-count result)) "flag count = 1")))
+
+(deftest test-unflag-cell
+  (let [flagged (toggle-flag (simple-board) [0 0])
+        result  (toggle-flag flagged [0 0])]
+    (is (false? (:flagged? (get-cell result [0 0]))) "cell unflagged")
+    (is (= 0 (flag-count result)) "flag count back to 0")))
+
+(deftest test-flag-revealed-cell-is-noop
+  (let [board    (simple-board)
+        revealed (reveal board [0 1])
+        result   (toggle-flag revealed [0 1])]
+    (is (false? (:flagged? (get-cell result [0 1]))) "revealed cells cannot be flagged")))
+
+(deftest test-flag-count-tracks-correctly
+  (let [b1 (toggle-flag (simple-board) [1 1])
+        b2 (toggle-flag b1 [1 2])
+        b3 (toggle-flag b2 [1 1])]
+    (is (= 1 (flag-count b1)) "count=1 after first flag")
+    (is (= 2 (flag-count b2)) "count=2 after second flag")
+    (is (= 1 (flag-count b3)) "count=1 after unflag")))
+
+# ---------------------------------------------------------------------------
+# Neighbours
+# ---------------------------------------------------------------------------
+
+(deftest test-corner-has-3-neighbors
+  (let [board (create-board 5 5 0 [-1 -1])]
+    (is (= 3 (count (board-neighbors board [0 0]))) "corner has 3 neighbors")))
+
+(deftest test-edge-has-5-neighbors
+  (let [board (create-board 5 5 0 [-1 -1])]
+    (is (= 5 (count (board-neighbors board [0 2]))) "edge has 5 neighbors")))
+
+(deftest test-center-has-8-neighbors
+  (let [board (create-board 5 5 0 [-1 -1])]
+    (is (= 8 (count (board-neighbors board [2 2]))) "center has 8 neighbors")))
+
+# ---------------------------------------------------------------------------
+# Unrevealed safe count
+# ---------------------------------------------------------------------------
+
+(deftest test-unrevealed-safe-count-initial
+  (let [board (simple-board)]
+    (is (= 8 (unrevealed-safe-count board)) "3×3 with 1 mine = 8 safe cells")))
+
+(deftest test-unrevealed-safe-count-decreases-on-reveal
+  (let [board  (simple-board)
+        before (unrevealed-safe-count board)
+        result (reveal board [0 1])]
+    (is (< (unrevealed-safe-count result) before) "count drops after reveal")))

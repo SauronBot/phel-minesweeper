@@ -1,0 +1,93 @@
+(ns phel-minesweeper\display
+  (:require phel-minesweeper\board :refer [get-cell won? lost?]))
+
+# ANSI colour helpers
+(defn- ansi [code s] (str "\033[" code "m" s "\033[0m"))
+(defn- bold   [s] (ansi "1"    s))
+(defn- red    [s] (ansi "1;31" s))
+(defn- green  [s] (ansi "1;32" s))
+(defn- yellow [s] (ansi "1;33" s))
+(defn- cyan   [s] (ansi "1;36" s))
+(defn- grey   [s] (ansi "2"    s))
+(defn- bright [s] (ansi "1;37" s))
+
+# Number colouring (classic Minesweeper palette)
+(defn- colour-number [n]
+  (case n
+    1 (ansi "34"    "1")
+    2 (ansi "32"    "2")
+    3 (ansi "31"    "3")
+    4 (ansi "34;1"  "4")
+    5 (ansi "31;1"  "5")
+    6 (ansi "36"    "6")
+    7 (ansi "35"    "7")
+    8 (ansi "37;1"  "8")
+    (str n)))
+
+(defn render-cell [cell reveal-all?]
+  (cond
+    (and (not reveal-all?) (not (:revealed? cell)) (not (:flagged? cell)))
+    (grey "·")
+
+    (and (not (:revealed? cell)) (:flagged? cell))
+    (yellow "F")
+
+    (and reveal-all? (not (:revealed? cell)) (:mine? cell) (not (:flagged? cell)))
+    (red "✱")
+
+    (and reveal-all? (not (:revealed? cell)) (:mine? cell) (:flagged? cell))
+    (green "✱")   # correctly flagged
+
+    (:mine? cell)
+    (red "✱")     # hit mine
+
+    (= 0 (:adjacent cell))
+    " "
+
+    :else
+    (colour-number (:adjacent cell))))
+
+(defn- col-header [width]
+  (let [nums (for [c :range [0 width]] (str (php/str_pad (str c) 3)))]
+    (str "    " (php/implode "" nums))))
+
+(defn render-board [board]
+  {:export true}
+  (let [w       (:width board)
+        h       (:height board)
+        reveal? (or (won? board) (lost? board))
+        header  (col-header w)
+        sep     (str "    " (php/str_repeat "---" w))
+        rows    (for [r :range [0 h]]
+                  (let [row-cells (for [c :range [0 w]]
+                                    (render-cell (get-cell board [r c]) reveal?))
+                        row-str   (php/implode "  " row-cells)]
+                    (str (php/str_pad (str r) 3) " | " row-str)))]
+    (str header "\n" sep "\n" (php/implode "\n" rows))))
+
+(defn render-status [board]
+  {:export true}
+  (let [mines (:mines board)
+        flags (:flags board)
+        rem   (- mines flags)]
+    (str (bold "Mines: ") mines
+         "  " (yellow (str "Flags: " flags))
+         "  " (cyan (str "Remaining: " rem)))))
+
+(defn render-banner [board]
+  {:export true}
+  (cond
+    (won? board)  (green "🎉  You win!")
+    (lost? board) (red   "💥  Boom! Game over.")
+    :else         ""))
+
+(defn clear-screen []
+  {:export true}
+  (print "\033[2J\033[H"))
+
+(defn render-help []
+  {:export true}
+  (str "\n" (grey "Commands:")
+       "\n  " (bright "r c")   "      reveal cell at row r, col c"
+       "\n  " (bright "f r c") "    flag/unflag cell at row r, col c"
+       "\n  " (bright "q")     "        quit"))

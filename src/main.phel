@@ -1,0 +1,131 @@
+(ns phel-minesweeper\main
+  (:require phel-minesweeper\board  :refer [create-board reveal toggle-flag
+                                            playing? won? lost?])
+  (:require phel-minesweeper\display :refer [render-board render-status
+                                             render-banner render-help
+                                             clear-screen])
+  (:require phel-minesweeper\input  :refer [parse-command]))
+
+# ---------------------------------------------------------------------------
+# Difficulty presets
+# ---------------------------------------------------------------------------
+
+(def presets
+  {:beginner     {:width 9  :height 9  :mines 10}
+   :intermediate {:width 16 :height 16 :mines 40}
+   :expert       {:width 30 :height 16 :mines 99}})
+
+(defn- print-board [board msg]
+  (clear-screen)
+  (println "  ╔══════════════════════════════╗")
+  (println "  ║   MINESWEEPER  —  Phel Lang  ║")
+  (println "  ╚══════════════════════════════╝")
+  (println)
+  (println (render-status board))
+  (println)
+  (println (render-board board))
+  (println)
+  (when (not= "" msg) (println msg))
+  (println (render-banner board))
+  (println (render-help)))
+
+(defn- read-line-safe []
+  (let [line (php/fgets php/STDIN)]
+    (if line (php/trim line) nil)))
+
+# ---------------------------------------------------------------------------
+# First-move safety: place mines after first reveal
+# ---------------------------------------------------------------------------
+
+(defn- initialized? [board] (:initialized? board))
+
+(defn- ensure-initialized [board coord]
+  (if (initialized? board)
+    board
+    (let [cfg (select-keys board [:width :height :mines])
+          new-board (create-board (:width cfg) (:height cfg) (:mines cfg) coord)]
+      (assoc new-board :initialized? true))))
+
+# ---------------------------------------------------------------------------
+# Game loop
+# ---------------------------------------------------------------------------
+
+(defn- game-loop [board last-msg]
+  (print-board board last-msg)
+  (if (not (playing? board))
+    board  # game over — return final state
+    (do
+      (print "\n> ")
+      (php/fflush php/STDOUT)
+      (let [line (read-line-safe)]
+        (if (nil? line)
+          board  # EOF / ctrl-D
+          (let [cmd (parse-command line (:width board) (:height board))]
+            (case (:action cmd)
+              :quit    board
+              :empty   (recur board "")
+              :invalid (recur board (str "⚠ " (:msg cmd)))
+              :reveal  (let [b2 (ensure-initialized board (:coord cmd))
+                             b3 (reveal b2 (:coord cmd))]
+                         (recur b3 ""))
+              :flag    (let [b2 (ensure-initialized board (:coord cmd))
+                             b3 (toggle-flag b2 (:coord cmd))]
+                         (recur b3 ""))
+              (recur board (str "⚠ Unknown action: " (:action cmd))))))))))
+
+# ---------------------------------------------------------------------------
+# Difficulty selection
+# ---------------------------------------------------------------------------
+
+(defn- choose-difficulty []
+  (println "\nDifficulty:")
+  (println "  1) Beginner      9×9,  10 mines")
+  (println "  2) Intermediate 16×16, 40 mines")
+  (println "  3) Expert       30×16, 99 mines")
+  (println "  4) Custom")
+  (print "\nChoice [1]: ")
+  (php/fflush php/STDOUT)
+  (let [choice (php/trim (php/fgets php/STDIN))]
+    (case choice
+      "2" (:intermediate presets)
+      "3" (:expert presets)
+      "4" (do
+            (print "Width:  ") (php/fflush php/STDOUT)
+            (let [w (php/intval (php/fgets php/STDIN))]
+              (print "Height: ") (php/fflush php/STDOUT)
+              (let [h (php/intval (php/fgets php/STDIN))]
+                (print "Mines:  ") (php/fflush php/STDOUT)
+                (let [m (php/intval (php/fgets php/STDIN))]
+                  {:width (max 4 w) :height (max 4 h) :mines (min m (- (* w h) 1))}))))
+      (:beginner presets))))
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+(defn- play-again? []
+  (print "\nPlay again? [y/N]: ")
+  (php/fflush php/STDOUT)
+  (let [ans (php/trim (php/fgets php/STDIN))]
+    (or (= ans "y") (= ans "Y"))))
+
+(defn main []
+  {:export true}
+  (clear-screen)
+  (println "╔════════════════════════════════════╗")
+  (println "║  MINESWEEPER — written in Phel 🔥  ║")
+  (println "╚════════════════════════════════════╝")
+  (loop []
+    (let [cfg  (choose-difficulty)
+          # Placeholder board (no mines yet — placed on first reveal)
+          base  (create-board (:width cfg) (:height cfg) (:mines cfg) [-1 -1])
+          board (-> base
+                    (assoc :initialized? false)
+                    (assoc :width  (:width cfg))
+                    (assoc :height (:height cfg))
+                    (assoc :mines  (:mines cfg)))]
+      (game-loop board "Reveal a cell to start. First click is always safe.")
+      (when (play-again?) (recur)))))
+
+(when-not *build-mode*
+  (main))

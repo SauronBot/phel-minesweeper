@@ -1,0 +1,38 @@
+(ns phel-minesweeper\input)
+
+(defn parse-command
+  "Parse a line of user input into a command map.
+   Returns:
+     {:action :reveal :coord [r c]}
+     {:action :flag   :coord [r c]}
+     {:action :quit}
+     {:action :invalid :msg \"...\"}
+     {:action :empty}"
+  {:export true}
+  [line width height]
+  (let [parts (into [] (filter |(not= $ "") (php/explode " " (php/trim line))))]
+    (cond
+      (= 0 (count parts))
+      {:action :empty}
+
+      (= "q" (first parts))
+      {:action :quit}
+
+      (= "f" (first parts))
+      (if (not= 3 (count parts))
+        {:action :invalid :msg "Usage: f <row> <col>"}
+        (let [r (php/intval (second parts))
+              c (php/intval (peek parts))]
+          (if (or (< r 0) (>= r height) (< c 0) (>= c width))
+            {:action :invalid :msg (str "Out of bounds. Row 0-" (dec height) ", Col 0-" (dec width))}
+            {:action :flag :coord [r c]})))
+
+      (= 2 (count parts))
+      (let [r (php/intval (first parts))
+            c (php/intval (second parts))]
+        (if (or (< r 0) (>= r height) (< c 0) (>= c width))
+          {:action :invalid :msg (str "Out of bounds. Row 0-" (dec height) ", Col 0-" (dec width))}
+          {:action :reveal :coord [r c]}))
+
+      :else
+      {:action :invalid :msg "Unknown command. Type 'r c' to reveal, 'f r c' to flag, 'q' to quit."})))
