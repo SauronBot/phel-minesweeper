@@ -1,14 +1,21 @@
 {
     "name": "sauronbot/phel-minesweeper",
-    "description": "Terminal Minesweeper written in Phel — a Lisp that compiles to PHP.",
-    "keywords": ["phel", "lisp", "game", "minesweeper", "terminal", "cli"],
+    "description": "Terminal Minesweeper written in Phel \u2014 a Lisp that compiles to PHP.",
+    "keywords": [
+        "phel",
+        "lisp",
+        "game",
+        "minesweeper",
+        "terminal",
+        "cli"
+    ],
     "homepage": "https://github.com/SauronBot/phel-minesweeper",
     "license": "MIT",
     "type": "project",
     "minimum-stability": "dev",
     "prefer-stable": true,
     "require": {
-        "php": ">=8.3",
+        "php": ">=8.4",
         "phel-lang/phel-lang": "dev-main"
     },
     "require-dev": {
